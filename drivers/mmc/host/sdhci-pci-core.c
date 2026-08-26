@@ -365,6 +365,33 @@ static int mfd_sdio_probe_slot(struct sdhci_pci_slot *slot)
 	return 0;
 }
 
+/*
+ * Cloverview SDIO (BCM4330): the combo module is fed from a fixed 3.3V
+ * rail, but the controller's CAPABILITIES register does not advertise a
+ * usable voltage window, which makes mmc_select_voltage() reject the
+ * card's OCR ("no support for card's volts"). Pin the host to the
+ * physical supply instead of trusting the caps.
+ */
+static int clv_sdio_probe_slot(struct sdhci_pci_slot *slot)
+{
+	/*
+	 * mmc_select_voltage() runs in mmc_attach_sdio() BEFORE
+	 * ocr_avail_sdio would be adopted inside mmc_sdio_init_card(),
+	 * so override the generic mask directly.
+	 */
+	slot->host->mmc->ocr_avail = MMC_VDD_29_30 | MMC_VDD_30_31 |
+				     MMC_VDD_31_32 | MMC_VDD_32_33 |
+				     MMC_VDD_33_34;
+	slot->host->mmc->caps |= MMC_CAP_POWER_OFF_CARD | MMC_CAP_NONREMOVABLE;
+	slot->host->mmc->ocr_avail_sdio = slot->host->mmc->ocr_avail;
+	return 0;
+}
+
+static const struct sdhci_pci_fixes sdhci_intel_clv_sdio = {
+	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
+	.probe_slot	= clv_sdio_probe_slot,
+};
+
 static const struct sdhci_pci_fixes sdhci_intel_mrst_hc0 = {
 	.quirks		= SDHCI_QUIRK_BROKEN_ADMA | SDHCI_QUIRK_NO_HISPD_BIT,
 	.probe_slot	= mrst_hc_probe_slot,
@@ -1903,10 +1930,12 @@ static const struct pci_device_id pci_ids[] = {
 	SDHCI_PCI_DEVICE(INTEL, BSW_SDIO,  intel_byt_sdio),
 	SDHCI_PCI_DEVICE(INTEL, BSW_SD,    intel_byt_sd),
 	SDHCI_PCI_DEVICE(INTEL, CLV_SDIO0, intel_mfd_sd),
-	SDHCI_PCI_DEVICE(INTEL, CLV_SDIO1, intel_mfd_sdio),
+	SDHCI_PCI_DEVICE(INTEL, CLV_SDIO1, intel_clv_sdio),
 	SDHCI_PCI_DEVICE(INTEL, CLV_SDIO2, intel_mfd_sdio),
-	SDHCI_PCI_DEVICE(INTEL, CLV_EMMC0, intel_mfd_emmc),
-	SDHCI_PCI_DEVICE(INTEL, CLV_EMMC1, intel_mfd_emmc),
+	/* eMMC disabled on this board: do not bind the controllers
+	{ PCI_DEVICE_ID_INTEL_CLV_EMMC0, intel_mfd_emmc },
+	{ PCI_DEVICE_ID_INTEL_CLV_EMMC1, intel_mfd_emmc },
+	 */
 	SDHCI_PCI_DEVICE(INTEL, MRFLD_MMC, intel_mrfld_mmc),
 	SDHCI_PCI_DEVICE(INTEL, SPT_EMMC,  intel_byt_emmc),
 	SDHCI_PCI_DEVICE(INTEL, SPT_SDIO,  intel_byt_sdio),
@@ -2302,6 +2331,15 @@ static int sdhci_pci_probe(struct pci_dev *pdev,
 
 	BUG_ON(pdev == NULL);
 	BUG_ON(ent == NULL);
+
+	/*
+	 * The eMMC is populated on this board but intentionally disabled.
+	 * Besides its dedicated IDs (disabled above), it would also be
+	 * claimed by the generic SDHCI class-code entry at the end of the
+	 * table, so reject it explicitly here.
+	 */
+	if (pdev->vendor == PCI_VENDOR_ID_INTEL && pdev->device == 0x08e5)
+		return -ENODEV;
 
 	dev_info(&pdev->dev, "SDHCI controller found [%04x:%04x] (rev %x)\n",
 		 (int)pdev->vendor, (int)pdev->device, (int)pdev->revision);

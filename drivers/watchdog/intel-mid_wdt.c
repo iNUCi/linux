@@ -55,12 +55,16 @@ wdt_command(struct mid_wdt *mid, int sub, const void *in, size_t inlen, size_t s
 static int wdt_start(struct watchdog_device *wd)
 {
 	struct mid_wdt *mid = watchdog_get_drvdata(wd);
+	struct intel_mid_wdt_pdata *pdata = mid->dev->platform_data;
 	int ret, in_size;
 	int timeout = wd->timeout;
 	struct ipc_wd_start {
 		u32 pretimeout;
 		u32 timeout;
-	} ipc_wd_start = { timeout - MID_WDT_PRETIMEOUT, timeout };
+	} ipc_wd_start = {
+		(timeout - MID_WDT_PRETIMEOUT) * pdata->freq,
+		timeout * pdata->freq
+	};
 
 	/*
 	 * SCU expects the input size for watchdog IPC to be 2 which is the
@@ -104,7 +108,12 @@ static int wdt_stop(struct watchdog_device *wd)
 
 static irqreturn_t mid_wdt_irq(int irq, void *dev_id)
 {
-	panic("Kernel Watchdog");
+	/*
+	 * The warning interrupt should not fire while the watchdog core
+	 * keeps the timer serviced. Do not panic() here: on platforms
+	 * with quirky SCU firmware (e.g. Cloverview) it has been observed
+	 * to trigger spuriously during bring-up.
+	 */
 
 	/* This code should not be reached */
 	return IRQ_HANDLED;
@@ -134,6 +143,10 @@ static int mid_wdt_probe(struct platform_device *pdev)
 		dev_err(dev, "missing platform data\n");
 		return -EINVAL;
 	}
+
+	/* Platforms that do not specify a unit default to seconds */
+	if (!pdata->freq)
+		pdata->freq = 1;
 
 	if (pdata->probe) {
 		ret = pdata->probe(pdev);

@@ -186,8 +186,10 @@ static const struct pci_device_id dw_spi_pci_ids[] = {
 	 */
 	/* Intel MID platform SPI controller 1 */
 	{ PCI_VDEVICE(INTEL, 0x0800), (kernel_ulong_t)&dw_spi_pci_mid_desc_1},
+	{ PCI_VDEVICE(INTEL, 0x08e1), (kernel_ulong_t)&dw_spi_pci_mid_desc_1},
 	/* Intel MID platform SPI controller 2 */
 	{ PCI_VDEVICE(INTEL, 0x0812), (kernel_ulong_t)&dw_spi_pci_mid_desc_2},
+	{ PCI_VDEVICE(INTEL, 0x08ee), (kernel_ulong_t)&dw_spi_pci_mid_desc_2},
 	/* Intel Elkhart Lake PSE SPI controllers */
 	{ PCI_VDEVICE(INTEL, 0x4b84), (kernel_ulong_t)&dw_spi_pci_ehl_desc},
 	{ PCI_VDEVICE(INTEL, 0x4b85), (kernel_ulong_t)&dw_spi_pci_ehl_desc},
