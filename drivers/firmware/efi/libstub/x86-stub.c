@@ -534,6 +534,23 @@ static efi_status_t efi_allocate_bootparams(efi_handle_t handle,
 	hdr->type_of_loader = 0x21;
 	hdr->initrd_addr_max = INT_MAX;
 
+	/*
+	 * Detect Intel MID (Cloverview) and flag it so the kernel runs its
+	 * platform bringup (x86_intel_mid_early_setup): without this the
+	 * MID PCI ops and the SCU-IPC based IRQ routing never activate and
+	 * e.g. the SDHCI controllers end up without usable interrupts.
+	 */
+	if (IS_ENABLED(CONFIG_X86_INTEL_MID)) {
+		u32 eax, ebx, ecx, edx;
+
+		asm volatile("cpuid"
+			     : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+			     : "a"(1));
+		if (((eax >> 8) & 0xf) == 6 &&
+		    ((((eax >> 16) & 0xf) << 4) | ((eax >> 4) & 0xf)) == 0x35)
+			hdr->hardware_subarch = X86_SUBARCH_INTEL_MID;
+	}
+
 	/* Convert unicode cmdline to ascii */
 	cmdline_ptr = efi_convert_cmdline(image);
 	if (!cmdline_ptr) {

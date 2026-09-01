@@ -13,6 +13,12 @@
 
 struct intel_mid_wdt_pdata {
 	int irq;
+	/*
+	 * Multiplier applied to the pretimeout/timeout values passed to
+	 * the SCU watchdog IPC. Tangier expects seconds (1), while older
+	 * MID SoCs such as Cloverview expect timer ticks.
+	 */
+	int freq;
 	int (*probe)(struct platform_device *pdev);
 };
 

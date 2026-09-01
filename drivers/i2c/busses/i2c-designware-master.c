@@ -60,16 +60,16 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 			i2c_dw_scl_hcnt(dev,
 					DW_IC_SS_SCL_HCNT,
 					ic_clk,
-					4000,	/* tHD;STA = tHIGH = 4.0 us */
+					22700,	/* tHD;STA = tHIGH = 22.7 us (stock) */
 					sda_falling_time,
-					0);	/* No offset */
+					23);	/* Offset (stock) */
 		dev->ss_lcnt =
 			i2c_dw_scl_lcnt(dev,
 					DW_IC_SS_SCL_LCNT,
 					ic_clk,
-					4700,	/* tLOW = 4.7 us */
+					22700,	/* tLOW = 22.7 us (stock) */
 					scl_falling_time,
-					0);	/* No offset */
+					28);	/* Offset (stock) */
 	}
 	dev_dbg(dev->dev, "Standard Mode HCNT:LCNT = %d:%d\n",
 		dev->ss_hcnt, dev->ss_lcnt);
@@ -116,16 +116,16 @@ static int i2c_dw_set_timings_master(struct dw_i2c_dev *dev)
 			i2c_dw_scl_hcnt(dev,
 					DW_IC_FS_SCL_HCNT,
 					ic_clk,
-					600,	/* tHD;STA = tHIGH = 0.6 us */
+					5200,	/* tHIGH = 5.2 us (stock) */
 					sda_falling_time,
-					0);	/* No offset */
+					11);	/* Offset (stock) */
 		dev->fs_lcnt =
 			i2c_dw_scl_lcnt(dev,
 					DW_IC_FS_SCL_LCNT,
 					ic_clk,
-					1300,	/* tLOW = 1.3 us */
+					7200,	/* tLOW = 7.2 us (stock) */
 					scl_falling_time,
-					0);	/* No offset */
+					12);	/* Offset (stock) */
 	}
 	dev_dbg(dev->dev, "Fast Mode%s HCNT:LCNT = %d:%d\n",
 		fp_str, dev->fs_hcnt, dev->fs_lcnt);

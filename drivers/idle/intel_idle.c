@@ -1691,6 +1691,8 @@ static const struct x86_cpu_id intel_idle_ids[] __initconst = {
 	X86_MATCH_VFM(INTEL_SANDYBRIDGE,	&idle_cpu_snb),
 	X86_MATCH_VFM(INTEL_SANDYBRIDGE_X,	&idle_cpu_snx),
 	X86_MATCH_VFM(INTEL_ATOM_SALTWELL,	&idle_cpu_atom),
+	X86_MATCH_VFM(INTEL_ATOM_SALTWELL_MID,	&idle_cpu_atom),
+	X86_MATCH_VFM(INTEL_ATOM_SALTWELL_TABLET, &idle_cpu_atom),
 	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT,	&idle_cpu_byt),
 	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID, &idle_cpu_tangier),
 	X86_MATCH_VFM(INTEL_ATOM_AIRMONT,	&idle_cpu_cht),

@@ -1010,6 +1010,14 @@ config INTEL_SCU_IPC_UTIL
 	  low level access for debug work and updating the firmware. Say
 	  N unless you will be doing this on an Intel MID platform.
 
+config INTEL_MID_POWER_BUTTON
+	tristate "power button driver for Intel MID platforms"
+	depends on INTEL_SCU && INPUT
+	help
+	  This driver handles the power button on the Intel MID platforms.
+
+	  If unsure, say N.
+
 source "drivers/platform/x86/siemens/Kconfig"
 
 config SILICOM_PLATFORM

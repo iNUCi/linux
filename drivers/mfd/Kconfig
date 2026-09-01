@@ -684,6 +684,15 @@ config MFD_INTEL_QUARK_I2C_GPIO
 	  their respective IO driver.
 	  The GPIO exports a total amount of 8 interrupt-capable GPIOs.
 
+config MFD_INTEL_MSIC
+	bool "Intel MSIC"
+	depends on INTEL_SCU
+	select MFD_CORE
+	help
+	  Select this option to enable access to Intel MSIC (Avatele
+	  Passage) chip. This chip embeds audio, battery, GPIO, etc.
+	  devices used in Intel Medfield platforms.
+
 config LPC_ICH
 	tristate "Intel ICH LPC"
 	depends on PCI

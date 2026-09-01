@@ -22,6 +22,9 @@
 #define PCI_DEVICE_ID_INTEL_TNG_UART	0x1191
 #define PCI_DEVICE_ID_INTEL_CDF_UART	0x18d8
 #define PCI_DEVICE_ID_INTEL_DNV_UART	0x19d8
+#define PCI_DEVICE_ID_INTEL_CLV_UART1	0x08fc
+#define PCI_DEVICE_ID_INTEL_CLV_UART2	0x08fd
+#define PCI_DEVICE_ID_INTEL_CLV_UART3	0x08fe
 
 /* Intel MID Specific registers */
 #define INTEL_MID_UART_FISR		0x08
@@ -74,6 +77,39 @@ static int pnw_setup(struct mid8250 *mid, struct uart_port *p)
 }
 
 static void pnw_exit(struct mid8250 *mid)
+{
+	pci_dev_put(mid->dma_dev);
+}
+
+/*
+ * Cloverview (Saltwell) uses the same Penwell-generation HSU both for the
+ * UARTs (0x08fc/08fd/08fe at functions 0/1/2 of slot 5) and the shared DMA
+ * controller (function 3 of the same slot), but with distinct PCI device IDs.
+ */
+static int clv_setup(struct mid8250 *mid, struct uart_port *p)
+{
+	struct pci_dev *pdev = to_pci_dev(p->dev);
+
+	switch (pdev->device) {
+	case PCI_DEVICE_ID_INTEL_CLV_UART1:
+		mid->dma_index = 0;
+		break;
+	case PCI_DEVICE_ID_INTEL_CLV_UART2:
+		mid->dma_index = 1;
+		break;
+	case PCI_DEVICE_ID_INTEL_CLV_UART3:
+		mid->dma_index = 2;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	mid->dma_dev = pci_get_slot(pdev->bus,
+				    PCI_DEVFN(PCI_SLOT(pdev->devfn), 3));
+	return 0;
+}
+
+static void clv_exit(struct mid8250 *mid)
 {
 	pci_dev_put(mid->dma_dev);
 }
@@ -361,6 +397,19 @@ static const struct mid8250_board pnw_board = {
 	.exit = pnw_exit,
 };
 
+static const struct mid8250_board clv_board = {
+	.freq = 50000000,
+	.base_baud = 115200,
+	.bar = 0,
+	/*
+	 * Saltwell/Cloverview: the HSU DMA data path is unreliable in
+	 * mainline (RX data is never delivered), so fall back to PIO for the
+	 * Bluetooth/HS-UART ports rather than risk silent RX loss.
+	 */
+	.setup = PTR_IF(false, clv_setup),
+	.exit = PTR_IF(false, clv_exit),
+};
+
 static const struct mid8250_board tng_board = {
 	.freq = 38400000,
 	.base_baud = 1843200,
@@ -389,6 +438,9 @@ static const struct pci_device_id pci_ids[] = {
 	{ PCI_DEVICE_DATA(INTEL, PNW_UART1, &pnw_board) },
 	{ PCI_DEVICE_DATA(INTEL, PNW_UART2, &pnw_board) },
 	{ PCI_DEVICE_DATA(INTEL, PNW_UART3, &pnw_board) },
+	{ PCI_DEVICE_DATA(INTEL, CLV_UART1, &clv_board) },
+	{ PCI_DEVICE_DATA(INTEL, CLV_UART2, &clv_board) },
+	{ PCI_DEVICE_DATA(INTEL, CLV_UART3, &clv_board) },
 	{ PCI_DEVICE_DATA(INTEL, TNG_UART, &tng_board) },
 	{ PCI_DEVICE_DATA(INTEL, CDF_UART, &dnv_board) },
 	{ PCI_DEVICE_DATA(INTEL, DNV_UART, &dnv_board) },

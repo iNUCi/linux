@@ -12,6 +12,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
+#include <linux/regulator/fixed.h>
 #include <linux/regulator/machine.h>
 #include <linux/scatterlist.h>
 #include <linux/irq.h>
@@ -74,6 +75,29 @@ static void intel_mid_arch_setup(void)
 	 */
 	regulator_has_full_constraints();
 }
+
+/*
+ * Cloverview (Acer Iconia W4): the BCM4330 Bluetooth section needs "vbat"
+ * and "vddio" supplies so that hci_bcm's mandatory devm_regulator_bulk_get()
+ * in bcm_get_resources() resolves. Both rails are always-on here
+ * (bt_reg_on / bt_uart_enable are asserted by U-Boot and never gated off),
+ * so register them as always-on fixed regulators. They are looked up by
+ * name, independent of the consumer device.
+ *
+ * This must run from an initcall (not intel_mid_arch_setup / setup_arch,
+ * which is too early for the platform bus and regulator core); arch_initcall
+ * runs after the platform bus and regulator subsystem are registered.
+ */
+static int __init intel_mid_regulators_init(void)
+{
+	if (boot_cpu_data.x86_vfm == INTEL_ATOM_SALTWELL_TABLET) {
+		regulator_register_always_on(0, "vbat", NULL, 0, 3700000);
+		regulator_register_always_on(1, "vddio", NULL, 0, 1800000);
+	}
+
+	return 0;
+}
+arch_initcall(intel_mid_regulators_init);
 
 /*
  * Moorestown does not have external NMI source nor port 0x61 to report

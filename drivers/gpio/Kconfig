@@ -1840,12 +1840,26 @@ config GPIO_BT8XX
 
 	  If unsure, say N.
 
+config GPIO_INTEL_MID
+	bool "Intel MID GPIO support"
+	depends on X86_INTEL_MID
+	select GPIOLIB_IRQCHIP
+	help
+	  Say Y here to support Intel MID GPIO.
+
 config GPIO_MERRIFIELD
 	tristate "Intel Merrifield GPIO support"
 	depends on X86_INTEL_MID
 	select GPIO_TANGIER
 	help
 	  Say Y here to support Intel Merrifield GPIO.
+
+config GPIO_MSIC
+	bool "Intel MSIC mixed signal gpio support"
+	depends on (X86 || COMPILE_TEST) && MFD_INTEL_MSIC
+	help
+	  Enable support for GPIO on intel MSIC controllers found in
+	  intel MID devices
 
 config GPIO_MLXBF
 	tristate "Mellanox BlueField SoC GPIO"

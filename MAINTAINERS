@@ -13045,6 +13045,7 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/andy/linux-gpio-intel.git
 F:	drivers/gpio/gpio-elkhartlake.c
 F:	drivers/gpio/gpio-graniterapids.c
 F:	drivers/gpio/gpio-ich.c
+F:	drivers/gpio/gpio-intel-mid.c
 F:	drivers/gpio/gpio-merrifield.c
 F:	drivers/gpio/gpio-ml-ioh.c
 F:	drivers/gpio/gpio-pch.c

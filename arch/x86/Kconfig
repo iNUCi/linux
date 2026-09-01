@@ -571,6 +571,7 @@ config X86_EXTENDED_PLATFORM
 
 	  32-bit platforms (CONFIG_64BIT=n):
 		Goldfish (mostly Android emulator)
+		Clover Trail MID devices
 		Intel CE media processor (CE4100) SoC
 		Intel Quark
 		RDC R-321x SoC
@@ -626,17 +627,16 @@ config X86_UV
 	  If you don't have one of these, you should say N here.
 
 config X86_INTEL_MID
-	bool "Intel Z34xx/Z35xx MID platform support"
+	bool "Intel MID platform support"
 	depends on X86_EXTENDED_PLATFORM
 	depends on X86_PLATFORM_DEVICES
 	depends on PCI
-	depends on X86_64 || (EXPERT && PCI_GOANY)
 	depends on X86_IO_APIC
 	select I2C
 	select DW_APB_TIMER
 	select INTEL_SCU_PCI
 	help
-	  Select to build a kernel capable of supporting 64-bit Intel MID
+	  Select to build a kernel capable of supporting Intel MID
 	  (Mobile Internet Device) platform systems which do not have
 	  the PCI legacy interfaces.
 
