@@ -29,6 +29,7 @@
 #include <linux/smp.h>
 
 #include <asm/cpu_device_id.h>
+#include <asm/processor.h>
 #include <asm/segment.h>
 #include <asm/pci_x86.h>
 #include <asm/hw_irq.h>
@@ -220,6 +221,24 @@ static const struct x86_cpu_id intel_mid_cpu_ids[] = {
 	{}
 };
 
+/*
+ * Cloverview: the firmware leaves PCI_INTERRUPT_LINE unprogrammed and
+ * writes to it from the OS may not stick (the SCU virtualizes parts of
+ * the PCI config space), so derive the GSI from the platform routing
+ * that the stock firmware uses instead.
+ */
+static const struct {
+	u8 slot;
+	u8 func;
+	u16 device;
+	u8 gsi;
+} clv_gsi_map[] = {
+	{ 1, 0, 0x08e5, 27 },	/* SDHCI eMMC */
+	{ 1, 7, 0x08ea, 23 },	/* SCU IPC */
+	{ 4, 0, 0x08f9, 41 },	/* SDHCI SD card */
+	{ 4, 1, 0x08fa, 42 },	/* SDHCI SDIO */
+};
+
 static int intel_mid_pci_irq_enable(struct pci_dev *dev)
 {
 	const struct x86_cpu_id *id;
@@ -236,6 +255,19 @@ static int intel_mid_pci_irq_enable(struct pci_dev *dev)
 	if (ret) {
 		dev_warn(&dev->dev, "Failed to read interrupt line: %d\n", ret);
 		return pcibios_err_to_errno(ret);
+	}
+
+	if (boot_cpu_data.x86_model == 0x35) {
+		unsigned int i;
+
+		for (i = 0; i < ARRAY_SIZE(clv_gsi_map); i++) {
+			if (PCI_SLOT(dev->devfn) == clv_gsi_map[i].slot &&
+			    PCI_FUNC(dev->devfn) == clv_gsi_map[i].func &&
+			    dev->device == clv_gsi_map[i].device) {
+				gsi = clv_gsi_map[i].gsi;
+				break;
+			}
+		}
 	}
 
 	id = x86_match_cpu(intel_mid_cpu_ids);

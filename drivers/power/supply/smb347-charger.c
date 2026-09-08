@@ -19,6 +19,7 @@
 #include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
 
 #include <dt-bindings/power/summit,smb347-charger.h>
 
@@ -223,6 +224,7 @@ struct smb347_charger {
 	bool			use_mains;
 	bool			use_usb;
 	bool			use_usb_otg;
+	bool			needs_inok_toggle;
 	unsigned int		enable_control;
 	unsigned int		inok_polarity;
 };
@@ -1277,6 +1279,17 @@ static void smb347_dt_parse_dev_info(struct smb347_charger *smb)
 	 */
 	device_property_read_u32(dev, "summit,inok-polarity",
 				 &smb->inok_polarity);
+
+	/*
+	 * On platforms without board data (ACPI/PRP0001), we have no way to
+	 * know whether INOK must be toggled for OTG VBUS besides the property,
+	 * so default to the safe "toggle" behaviour used by DT boards that
+	 * need it.
+	 */
+	smb->needs_inok_toggle =
+			device_property_read_bool(dev, "summit,needs-inok-toggle");
+	if (!dev->of_node)
+		smb->needs_inok_toggle = true;
 }
 
 static int smb347_get_battery_info(struct smb347_charger *smb)
@@ -1291,7 +1304,7 @@ static int smb347_get_battery_info(struct smb347_charger *smb)
 		supply = smb->usb;
 
 	err = power_supply_get_battery_info(supply, &info);
-	if (err == -ENXIO || err == -ENODEV)
+	if (err == -ENXIO || err == -ENODEV || err == -ENOENT)
 		return 0;
 	if (err)
 		return err;
@@ -1393,7 +1406,7 @@ static int smb347_usb_vbus_regulator_enable(struct regulator_dev *rdev)
 
 	smb347_charging_disable(smb);
 
-	if (device_property_read_bool(&rdev->dev, "summit,needs-inok-toggle")) {
+	if (smb->needs_inok_toggle) {
 		unsigned int sysok = 0;
 
 		if (smb->inok_polarity == SMB3XX_SYSOK_INOK_ACTIVE_LOW)
@@ -1461,7 +1474,7 @@ static int smb347_usb_vbus_regulator_disable(struct regulator_dev *rdev)
 
 	smb->usb_vbus_enabled = false;
 
-	if (device_property_read_bool(&rdev->dev, "summit,needs-inok-toggle")) {
+	if (smb->needs_inok_toggle) {
 		unsigned int sysok = 0;
 
 		if (smb->inok_polarity == SMB3XX_SYSOK_INOK_ACTIVE_HIGH)
@@ -1499,6 +1512,10 @@ static const struct regulator_ops smb347_usb_vbus_regulator_ops = {
 	.set_current_limit = smb347_usb_vbus_set_current_limit,
 };
 
+static char *smb347_supplied_to[] = {
+	"max170xx_battery",
+};
+
 static const struct power_supply_desc smb347_mains_desc = {
 	.name		= "smb347-mains",
 	.type		= POWER_SUPPLY_TYPE_MAINS,
@@ -1528,6 +1545,18 @@ static const struct regulator_desc smb347_usb_vbus_regulator_desc = {
 	.n_voltages	= 1,
 };
 
+/*
+ * The USB VBUS regulator on non-DT (e.g. ACPI) platforms has no
+ * board-provided constraints, which leaves valid_ops_mask empty and makes
+ * regulator_enable() fail with -EPERM. Declare status-change capability so
+ * the OTG boost can actually be switched on.
+ */
+static struct regulator_init_data smb347_usb_vbus_default_init_data = {
+	.constraints	= {
+		.valid_ops_mask	= REGULATOR_CHANGE_STATUS,
+	},
+};
+
 static int smb347_probe(struct i2c_client *client)
 {
 	const struct i2c_device_id *id = i2c_client_get_device_id(client);
@@ -1535,6 +1564,8 @@ static int smb347_probe(struct i2c_client *client)
 	struct regulator_config usb_rdev_cfg = {};
 	struct device *dev = &client->dev;
 	struct smb347_charger *smb;
+	unsigned int val;
+	int attempt;
 	int ret;
 
 	smb = devm_kzalloc(dev, sizeof(*smb), GFP_KERNEL);
@@ -1552,8 +1583,28 @@ static int smb347_probe(struct i2c_client *client)
 	if (IS_ERR(smb->regmap))
 		return PTR_ERR(smb->regmap);
 
+	/*
+	 * On Clovertrail this charger only answers i2c once its input/USB
+	 * rail is present or after the power rails have settled. Until then
+	 * every access NACKs. Give it a short grace period on probe; the
+	 * driver registers no VBUS regulator anymore (USB host uses an
+	 * externally powered hub), so don't stall boot over it.
+	 */
+	for (attempt = 0; attempt < 10; attempt++) {
+		ret = regmap_read(smb->regmap, STAT_A, &val);
+		if (!ret)
+			break;
+		if (ret != -EREMOTEIO && ret != -EIO)
+			break;
+		msleep(200);
+	}
+	if (ret)
+		return ret;
+
 	mains_usb_cfg.drv_data = smb;
 	mains_usb_cfg.fwnode = dev_fwnode(dev);
+	mains_usb_cfg.supplied_to = smb347_supplied_to;
+	mains_usb_cfg.num_supplicants = ARRAY_SIZE(smb347_supplied_to);
 	if (smb->use_mains) {
 		smb->mains = devm_power_supply_register(dev, &smb347_mains_desc,
 							&mains_usb_cfg);
@@ -1583,6 +1634,9 @@ static int smb347_probe(struct i2c_client *client)
 	usb_rdev_cfg.dev = dev;
 	usb_rdev_cfg.driver_data = smb;
 	usb_rdev_cfg.regmap = smb->regmap;
+	if (!dev->of_node)
+		usb_rdev_cfg.init_data =
+					&smb347_usb_vbus_default_init_data;
 
 	smb->usb_rdev = devm_regulator_register(dev,
 						&smb347_usb_vbus_regulator_desc,

@@ -31,6 +31,7 @@
 
 enum dw_pci_ctl_id_t {
 	medfield,
+	cloverview,
 	merrifield,
 	baytrail,
 	cherrytrail,
@@ -56,6 +57,8 @@ struct dw_scl_sda_cfg {
 
 struct dw_pci_controller {
 	u32 bus_num;
+	u32 tx_fifo_depth;
+	u32 rx_fifo_depth;
 	u32 flags;
 	struct dw_scl_sda_cfg *scl_sda_cfg;
 	int (*setup)(struct pci_dev *pdev, struct dw_pci_controller *c);
@@ -121,6 +124,28 @@ static int mfld_setup(struct pci_dev *pdev, struct dw_pci_controller *c)
 	return -ENODEV;
 }
 
+static int clv_setup(struct pci_dev *pdev, struct dw_pci_controller *c)
+{
+	struct dw_i2c_dev *dev = pci_get_drvdata(pdev);
+
+	switch (pdev->device) {
+	case 0x08E2:
+	case 0x08E3:
+	case 0x08E4:
+		c->bus_num = pdev->device - 0x08E2;
+		return 0;
+	case 0x08F4:
+		dev->timings.bus_freq_hz = I2C_MAX_STANDARD_MODE_FREQ;
+		c->bus_num = pdev->device - 0x08F4 + 3;
+		return 0;
+	case 0x08F5:
+	case 0x08F6:
+		c->bus_num = pdev->device - 0x08F4 + 3;
+		return 0;
+	}
+	return -ENODEV;
+}
+
 static int mrfld_setup(struct pci_dev *pdev, struct dw_pci_controller *c)
 {
 	/*
@@ -162,7 +187,16 @@ static int navi_amd_setup(struct pci_dev *pdev, struct dw_pci_controller *c)
 static struct dw_pci_controller dw_pci_controllers[] = {
 	[medfield] = {
 		.bus_num = -1,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
 		.setup = mfld_setup,
+		.get_clk_rate_khz = mfld_get_clk_rate_khz,
+	},
+	[cloverview] = {
+		.bus_num = -1,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.setup = clv_setup,
 		.get_clk_rate_khz = mfld_get_clk_rate_khz,
 	},
 	[merrifield] = {
@@ -244,6 +278,11 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	dev->irq = pci_irq_vector(pdev, 0);
 	dev->flags |= controller->flags;
 
+	if (controller->tx_fifo_depth) {
+		dev->tx_fifo_depth = controller->tx_fifo_depth;
+		dev->rx_fifo_depth = controller->rx_fifo_depth;
+	}
+
 	pci_set_drvdata(pdev, dev);
 
 	if (controller->setup) {
@@ -314,6 +353,13 @@ static const struct pci_device_id i2c_designware_pci_ids[] = {
 	{ PCI_VDEVICE(INTEL, 0x082C), .driver_data = medfield },
 	{ PCI_VDEVICE(INTEL, 0x082D), .driver_data = medfield },
 	{ PCI_VDEVICE(INTEL, 0x082E), .driver_data = medfield },
+	/* Cloverview */
+	{ PCI_VDEVICE(INTEL, 0x08E2), .driver_data = cloverview },
+	{ PCI_VDEVICE(INTEL, 0x08E3), .driver_data = cloverview },
+	{ PCI_VDEVICE(INTEL, 0x08E4), .driver_data = cloverview },
+	{ PCI_VDEVICE(INTEL, 0x08F4), .driver_data = cloverview },
+	{ PCI_VDEVICE(INTEL, 0x08F5), .driver_data = cloverview },
+	{ PCI_VDEVICE(INTEL, 0x08F6), .driver_data = cloverview },
 	/* Merrifield */
 	{ PCI_VDEVICE(INTEL, 0x1195), .driver_data = merrifield },
 	{ PCI_VDEVICE(INTEL, 0x1196), .driver_data = merrifield },

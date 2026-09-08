@@ -18,6 +18,17 @@
 /* driver name */
 #define UDC_DRIVER_NAME   "ci_hdrc_pci"
 
+/*
+ * Selectable boot-time controller role. The Clovertrail OTG FSM never
+ * stabilizes with the strapped ID/VBUS, so the role is chosen at boot:
+ * "device" (default) presents the port as a USB peripheral to a host PC;
+ * "ci_hdrc_pci.dr_mode=host" gives a host port (needs an externally
+ * powered hub, the battery VBUS path was removed).
+ */
+static char *dr_mode = "device";
+module_param(dr_mode, charp, 0);
+MODULE_PARM_DESC(dr_mode, "USB controller role: 'device' (default) or 'host'");
+
 struct ci_hdrc_pci {
 	struct platform_device	*ci;
 	struct platform_device	*phy;
@@ -79,6 +90,13 @@ static int ci_hdrc_pci_probe(struct pci_dev *pdev,
 
 	pci_set_master(pdev);
 	pci_try_set_mwi(pdev);
+
+	if (platdata == &penwell_pci_platdata) {
+		if (!strcmp(dr_mode, "host"))
+			platdata->dr_mode = USB_DR_MODE_HOST;
+		else
+			platdata->dr_mode = USB_DR_MODE_PERIPHERAL;
+	}
 
 	/* register a nop PHY */
 	ci->phy = usb_phy_generic_register();

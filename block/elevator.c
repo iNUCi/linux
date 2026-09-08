@@ -729,7 +729,7 @@ void elv_update_nr_hw_queues(struct request_queue *q,
 void elevator_set_default(struct request_queue *q)
 {
 	struct elv_change_ctx ctx = {
-		.name = "mq-deadline",
+		.name = "none",
 		.no_uevent = true,
 	};
 	int err;
@@ -741,9 +741,9 @@ void elevator_set_default(struct request_queue *q)
 		return;
 
 	/*
-	 * For single queue devices, default to using mq-deadline. If we
-	 * have multiple queues or mq-deadline is not available, default
-	 * to "none".
+	 * For single queue devices, default to using "none" (no elevator).
+	 * This is best for flash/SDXC media where there are no rotational
+	 * seeks and often no hardware queueing to reorder for.
 	 */
 	ctx.type = elevator_find_get(ctx.name);
 	if (!ctx.type)

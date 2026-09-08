@@ -19,6 +19,15 @@
 
 #define TANGIER_EXT_TIMER0_MSI 12
 
+/*
+ * Cloverview: the watchdog timer is the last entry of the SFI MTMR
+ * table (MMIO 0xff11b88c, 19.2 MHz, GSI 7 - shows up as "watchdog
+ * timer" in the stock OS). The SCU expects the timeout values in
+ * timer ticks, hence the frequency multiplier below.
+ */
+#define CLOVERVIEW_WDT_GSI		7
+#define CLOVERVIEW_WDT_FREQ_HZ		19200000
+
 static struct platform_device wdt_dev = {
 	.name = "intel_mid_wdt",
 	.id = -1,
@@ -43,6 +52,30 @@ static int tangier_probe(struct platform_device *pdev)
 	}
 
 	pdata->irq = irq;
+	pdata->freq = 1;
+	return 0;
+}
+
+static int cloverview_probe(struct platform_device *pdev)
+{
+	struct irq_alloc_info info;
+	struct intel_mid_wdt_pdata *pdata = pdev->dev.platform_data;
+	int gsi = CLOVERVIEW_WDT_GSI;
+	int irq;
+
+	if (!pdata)
+		return -EINVAL;
+
+	/* Stock kernels run this IRQ edge triggered */
+	ioapic_set_alloc_attr(&info, cpu_to_node(0), 0, 0);
+	irq = mp_map_gsi_to_irq(gsi, IOAPIC_MAP_ALLOC, &info);
+	if (irq < 0) {
+		dev_warn(&pdev->dev, "cannot find interrupt %d in ioapic\n", gsi);
+		return irq;
+	}
+
+	pdata->irq = irq;
+	pdata->freq = CLOVERVIEW_WDT_FREQ_HZ;
 	return 0;
 }
 
@@ -50,8 +83,13 @@ static struct intel_mid_wdt_pdata tangier_pdata = {
 	.probe = tangier_probe,
 };
 
+static struct intel_mid_wdt_pdata cloverview_pdata = {
+	.probe = cloverview_probe,
+};
+
 static const struct x86_cpu_id intel_mid_cpu_ids[] = {
 	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID, &tangier_pdata),
+	X86_MATCH_VFM(INTEL_ATOM_SALTWELL_TABLET, &cloverview_pdata),
 	{}
 };
 
