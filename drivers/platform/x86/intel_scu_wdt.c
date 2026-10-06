@@ -43,6 +43,7 @@ static int tangier_probe(struct platform_device *pdev)
 	}
 
 	pdata->irq = irq;
+	pdata->freq = 1;
 	return 0;
 }
 
@@ -50,8 +51,28 @@ static struct intel_mid_wdt_pdata tangier_pdata = {
 	.probe = tangier_probe,
 };
 
+static int penwell_probe(struct platform_device *pdev)
+{
+	struct intel_mid_wdt_pdata *pdata = pdev->dev.platform_data;
+	int irq, gsi = 7;
+
+	if (!pdata)
+		return -EINVAL;
+
+	irq = mp_map_gsi_to_irq(gsi, IOAPIC_MAP_ALLOC, NULL);
+	pdata->irq = irq;
+	pdata->freq = 19200000;
+	return 0;
+}
+
+static struct intel_mid_wdt_pdata penwell_pdata = {
+	.probe = penwell_probe,
+};
+
 static const struct x86_cpu_id intel_mid_cpu_ids[] = {
-	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID, &tangier_pdata),
+	X86_MATCH_VFM(INTEL_ATOM_SALTWELL_MID, 	  &penwell_pdata),
+	X86_MATCH_VFM(INTEL_ATOM_SALTWELL_TABLET, &penwell_pdata),
+	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID,  &tangier_pdata),
 	{}
 };
 
